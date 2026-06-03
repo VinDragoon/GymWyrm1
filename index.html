@@ -138,6 +138,7 @@
     overflow:hidden; transition:border-color .28s, transform .28s, opacity .35s; }
   .ex::before{ content:""; position:absolute; left:0; top:0; bottom:0; width:3px; background:linear-gradient(180deg,var(--gold-br),var(--gold-deep)); opacity:.55; transition:.3s; }
   .ex.on::before{ opacity:1; box-shadow:0 0 12px var(--gold); }
+  .ex.on .ex-nm{ color:var(--gold-br); }
   .ex-top{ display:flex; gap:14px; align-items:flex-start; }
   .num{ flex:0 0 auto; width:34px; height:40px; display:grid; place-items:center; position:relative; font-family:var(--disp); font-weight:600; font-size:16px; color:var(--gold-br); }
   .num svg{ position:absolute; inset:0; width:100%; height:100%; }
@@ -156,18 +157,20 @@
 
   .log{ display:flex; align-items:flex-end; gap:9px; margin-top:14px; padding-top:13px; border-top:1px dashed var(--line); }
   .fld{ display:flex; flex-direction:column; gap:5px; }
+  .fld.wide{ flex:1; max-width:220px; }
   .fld label{ font-size:8.5px; letter-spacing:.18em; text-transform:uppercase; color:var(--muted-2); font-weight:700; padding-left:2px; }
-  .fld input{ width:96px; padding:10px 11px; border-radius:9px; background:var(--bg-2); border:1px solid var(--gold-soft);
-    color:var(--gold-br); font-family:var(--disp); font-weight:600; font-size:15px; outline:none; transition:border-color .25s, box-shadow .25s; }
-  .fld input::placeholder{ color:var(--muted-2); font-family:var(--body); font-weight:400; font-size:13px; }
-  .fld input:focus{ border-color:var(--gold); box-shadow:0 0 0 3px var(--gold-soft); }
-  .fld input.filled{ border-color:var(--line-2); }
-  .donebtn{ margin-left:auto; flex:0 0 auto; width:42px; height:42px; border-radius:11px; cursor:pointer;
-    border:1.5px solid var(--line-2); background:transparent; display:grid; place-items:center; transition:.25s; }
-  .donebtn svg{ width:18px; height:18px; transition:.25s; } .donebtn svg path{ stroke:var(--muted-2); }
-  .ex.on .donebtn{ background:linear-gradient(180deg,var(--gold-br),var(--gold)); border-color:var(--gold-br); box-shadow:0 0 14px rgba(184,116,32,.55); }
-  .ex.on .donebtn svg path{ stroke:var(--ink); }
-  .ex.on .ex-nm{ color:var(--muted); }
+  .selwrap{ position:relative; }
+  .selwrap select{
+    -webkit-appearance:none; appearance:none; width:100%; cursor:pointer;
+    padding:12px 36px 12px 13px; border-radius:9px; background:var(--bg-2); border:1px solid var(--gold-soft);
+    color:var(--gold-br); font-family:var(--disp); font-weight:600; font-size:16px; letter-spacing:.02em;
+    outline:none; transition:border-color .25s, box-shadow .25s;
+  }
+  .selwrap select:focus{ border-color:var(--gold); box-shadow:0 0 0 3px var(--gold-soft); }
+  .selwrap select:invalid, .selwrap select option[value=""]{ color:var(--muted-2); }
+  .selwrap .chev{ position:absolute; right:13px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--gold); font-size:13px; }
+  /* native dropdown list styling (best-effort across platforms) */
+  .selwrap select option{ background:#16110c; color:var(--cream); }
 
   /* mantra */
   .mantra{ margin-top:34px; text-align:center; padding:26px 20px; border-radius:16px;
@@ -215,8 +218,8 @@
   @media (max-width:560px){
     .wrap{ padding:24px 14px 80px; }
     .ex{ padding:14px 14px 14px 13px; }
-    .log{ flex-wrap:wrap; } .donebtn{ margin-left:0; }
-    .fld input{ width:calc(50vw - 40px); max-width:140px; }
+    .log{ flex-wrap:wrap; }
+    .fld.wide{ max-width:100%; width:100%; }
   }
 </style>
 </head>
@@ -422,14 +425,13 @@ const DAYS = [
    ░░  RENDER ENGINE — no need to edit below  ░░
    ============================================================ */
 const TAGS=["Day 1","Day 2","Day 3","Day 4","Day 5","Day 6","Day 7"];
-const state={ active:0, ex:{}, warm:{}, core:{}, log:{} };
+const state={ active:0, warm:{}, core:{}, log:{} };
 
 /* ---- localStorage persistence (per client+week, this browser only) ---- */
 const LS_KEY = `gymwyrm:${CONFIG.client}:w${CONFIG.week}`;
 function persist(){
   try{
-    const out={ ex:{}, warm:{}, core:{}, log:state.log };
-    for(const k in state.ex)   out.ex[k]=[...state.ex[k]];
+    const out={ warm:{}, core:{}, log:state.log };
     for(const k in state.warm) out.warm[k]=[...state.warm[k]];
     for(const k in state.core) out.core[k]=[...state.core[k]];
     localStorage.setItem(LS_KEY, JSON.stringify(out));
@@ -440,7 +442,6 @@ function restore(){
     const raw=localStorage.getItem(LS_KEY); if(!raw) return;
     const d=JSON.parse(raw);
     if(d.log) state.log=d.log;
-    if(d.ex)   for(const k in d.ex)   state.ex[k]=new Set(d.ex[k]);
     if(d.warm) for(const k in d.warm) state.warm[k]=new Set(d.warm[k]);
     if(d.core) for(const k in d.core) state.core[k]=new Set(d.core[k]);
   }catch(e){}
@@ -466,7 +467,8 @@ function buildNav(){
 }
 function refreshTicks(){
   [...nav.children].forEach((b,i)=>{
-    const d=DAYS[i], total=workCount(d), done=(state.ex[i]?state.ex[i].size:0);
+    const d=DAYS[i], total=workCount(d);
+    let done=0; if(state.log[i]) for(let k=0;k<total;k++){ if(state.log[i][k]&&state.log[i][k].w) done++; }
     b.classList.toggle('done', total>0 && done===total);
   });
 }
@@ -480,6 +482,25 @@ function ring(pct){
 function hexNum(n){ return `<div class="num"><svg viewBox="0 0 34 40"><path d="M17 1 L32 9.5 L32 30.5 L17 39 L2 30.5 L2 9.5 Z" fill="none" stroke="url(#rg)" stroke-width="1.3"/></svg><span>${n}</span></div>`; }
 const CK=`<svg viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
+// Build weight dropdown: blank, Bodyweight, then 2→50 in 2s, plus 12.5 & 17.5.
+const WEIGHTS = (function(){
+  const arr=['Bodyweight'];
+  for(let w=2; w<=50; w+=2){
+    arr.push(w+'kg');
+    if(w===12) arr.push('12.5kg');
+    if(w===16) arr.push('17.5kg'); // sits just after 16, before 18
+  }
+  return arr;
+})();
+function weightOptions(selected){
+  let html='<option value="">—</option>';
+  // ensure a prescribed value that isn't in the list still shows (e.g. odd loads)
+  const list = WEIGHTS.slice();
+  if(selected && !list.includes(selected)) list.unshift(selected);
+  list.forEach(w=>{ html+=`<option value="${w}"${w===selected?' selected':''}>${w}</option>`; });
+  return html;
+}
+
 function render(){
   buildNav();
   const d=DAYS[state.active], i=state.active;
@@ -490,12 +511,14 @@ function render(){
       <h2>${d.name}</h2><p>${d.mantra?d.mantra.sub:''}</p></div>`;
     return;
   }
-  state.ex[i]=state.ex[i]||new Set();
   state.warm[i]=state.warm[i]||new Set();
   state.core[i]=state.core[i]||new Set();
   state.log[i]=state.log[i]||{};
 
-  const total=workCount(d), done=state.ex[i].size, pct=total?done/total:0;
+  const total=workCount(d);
+  let done=0;
+  for(let k=0;k<total;k++){ if(state.log[i][k] && state.log[i][k].w) done++; }
+  const pct=total?done/total:0;
 
   // sections
   let warmHTML='';
@@ -519,11 +542,11 @@ function render(){
 
   let workHTML='';
   (d.work||[]).forEach((ex,k)=>{
-    const on=state.ex[i].has(k);
-    const rec=state.log[i][k]||{w:'',r:''};
+    const logged = state.log[i][k] && state.log[i][k].w;
+    const rec=state.log[i][k]||{w:''};
     const est = ex.est && ex.est!=='—'
       ? `<span class="pr"><span class="k">Target</span><span class="v est">${ex.est}</span></span>` : '';
-    workHTML+=`<div class="ex ${on?'on':''}" data-k="${k}">
+    workHTML+=`<div class="ex ${logged?'on':''}" data-k="${k}">
       <div class="ex-top">
         ${hexNum(k+1)}
         <div class="ex-main">
@@ -537,9 +560,13 @@ function render(){
           </div>
           ${ex.cue?`<div class="cue">${ex.cue}</div>`:''}
           <div class="log" data-k="${k}">
-            <div class="fld"><label>Weight Used</label><input type="text" inputmode="decimal" data-f="w" placeholder="—" value="${rec.w}"></div>
-            <div class="fld"><label>Reps Hit</label><input type="text" inputmode="numeric" data-f="r" placeholder="—" value="${rec.r}"></div>
-            <button class="donebtn" data-done="${k}" title="Mark done">${CK}</button>
+            <div class="fld wide">
+              <label>Weight Used</label>
+              <div class="selwrap">
+                <select data-f="w">${weightOptions(rec.w)}</select>
+                <span class="chev">▾</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -587,17 +614,14 @@ function render(){
       row.addEventListener('click',()=>{ const k=+row.dataset.k; set.has(k)?set.delete(k):set.add(k); row.classList.toggle('on'); persist(); });
     });
   });
-  // exercise done buttons
-  stage.querySelectorAll('[data-done]').forEach(btn=>{
-    btn.addEventListener('click',(e)=>{ e.stopPropagation(); const k=+btn.dataset.done;
-      state.ex[i].has(k)?state.ex[i].delete(k):state.ex[i].add(k); persist(); render(); });
-  });
-  // logging inputs
+  // weight dropdowns
   stage.querySelectorAll('.log').forEach(row=>{
     const k=+row.dataset.k;
-    row.querySelectorAll('input').forEach(inp=>{
-      inp.addEventListener('input',()=>{ state.log[i][k]=state.log[i][k]||{w:'',r:''}; state.log[i][k][inp.dataset.f]=inp.value.trim(); inp.classList.toggle('filled', inp.value.trim()!==''); persist(); });
-      if(inp.value.trim()) inp.classList.add('filled');
+    const sel=row.querySelector('select[data-f="w"]');
+    if(sel) sel.addEventListener('change',()=>{
+      state.log[i][k]=state.log[i][k]||{w:''};
+      state.log[i][k].w=sel.value;
+      persist(); render();
     });
   });
   // save / copy / sheet
@@ -609,9 +633,9 @@ function render(){
 function buildEntries(i){
   const d=DAYS[i]; const entries=[];
   (d.work||[]).forEach((ex,k)=>{
-    const rec=(state.log[i]||{})[k]; const done=state.ex[i]&&state.ex[i].has(k);
-    if((rec&&(rec.w||rec.r))||done){
-      entries.push({ exercise:ex.name, target:ex.est||'', weight:(rec&&rec.w)||(done?'done':''), reps:(rec&&rec.r)||'' });
+    const rec=(state.log[i]||{})[k];
+    if(rec&&rec.w){
+      entries.push({ exercise:ex.name, target:ex.est||'', weight:rec.w, reps:ex.reps||'' });
     }
   });
   return entries;
@@ -647,9 +671,8 @@ function copyDay(i,btn){
   const d=DAYS[i]; const L=[];
   L.push(`🐉 GYM WYRM — ${d.name} · ${CONFIG.client} · Week ${CONFIG.week}`); L.push('');
   (d.work||[]).forEach((ex,k)=>{
-    const rec=(state.log[i]||{})[k]; const done=state.ex[i]&&state.ex[i].has(k);
-    if(rec&&(rec.w||rec.r)){ const w=rec.w||'—'; const r=rec.r?`${rec.r} reps`:''; L.push(`• ${ex.name}: ${w}${r?' × '+r:''}  (target ${ex.est||'—'})`); }
-    else if(done){ L.push(`• ${ex.name}: ✓ done  (target ${ex.est||'—'})`); }
+    const rec=(state.log[i]||{})[k];
+    if(rec&&rec.w){ L.push(`• ${ex.name}: ${rec.w}  (target ${ex.est||'—'})`); }
     else { L.push(`• ${ex.name}: —`); }
   });
   L.push(''); L.push('Sent from my GYM WYRM program.');

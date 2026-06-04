@@ -145,7 +145,8 @@
   .ex-fig svg{ width:100%; height:100%; display:block; }
   .ex-fig img{ width:100%; height:100%; object-fit:contain; display:block; }
   .ex.on .ex-fig{ opacity:.92; color:var(--gold-br); }
-  @media (max-width:560px){ .ex-fig{ width:52px; height:52px; } }
+  /* On phones the card is tight — hide the figure so text + dropdown stay clean */
+  @media (max-width:640px){ .ex-fig{ display:none; } }
   .num{ flex:0 0 auto; width:34px; height:40px; display:grid; place-items:center; position:relative; font-family:var(--disp); font-weight:600; font-size:16px; color:var(--gold-br); }
   .num svg{ position:absolute; inset:0; width:100%; height:100%; }
   .num span{ position:relative; z-index:1; }
